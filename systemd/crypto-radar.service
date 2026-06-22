@@ -10,7 +10,7 @@ Group=cryptoradar
 WorkingDirectory=/srv/crypto-market-radar
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=TG_CHAT_ID=5915093313
+EnvironmentFile=/etc/crypto-market-radar/crypto-radar.env
 Environment=TG_BOT_TOKEN_FILE=/etc/crypto-market-radar/tg_bot_token.txt
 Environment=RADAR_DB_PATH=/var/lib/crypto-market-radar/radar.db
 ExecStart=/srv/crypto-market-radar/.venv/bin/python -m src.main
