@@ -1,0 +1,120 @@
+{
+  "overall": "CONDITIONAL_PASS",
+  "timestamp": "2026-06-18T21:03+08:00",
+  "dimensions": {
+    "logic_consistency": {
+      "score": 9,
+      "pass": true,
+      "issues": [
+        "/alerts command is specified in SPEC §9 MVP but not in Phase 1 scope (§15). Extra command, not a bug — overdelivers.",
+        "bot.py reads token from `tg_bot_token.txt` file while SPEC §8 config.yaml uses `${TG_BOT_TOKEN}` env var reference. Token source mechanism differs from config design — will need integration in later phases."
+      ],
+      "details": {
+        "phase1_scope": {
+          "tg_bot_creation": "PASS — RadarBot created, token from file",
+          "push_module": "PASS — send_message with retry + Markdown formatting (formatter.py)",
+          "status_help_commands": "PASS — cmd_status and cmd_help implemented",
+          "startup_notification": "PASS — sent at boot with warmup hint"
+        },
+        "spec9_commands": {
+          "status": "PASS — uptime, coin count, alert count, WS status, version",
+          "summary": "PASS — placeholder with correct phase-appropriate stub message",
+          "watch": "PASS — lists 6 symbols with level (S/A) and market type (spot/futures)",
+          "help": "PASS — lists all 7 commands with descriptions",
+          "reload": "PASS — skeleton, acknowledges with 'will refresh next cycle'",
+          "alerts": "PASS — reads from SQLite, fallback for empty/error state"
+        },
+        "spec7_templates": {
+          "startup_message": "PASS — matches §7.1 template exactly (exchange, symbols, interval, version, warmup hint)",
+          "warmup_done_message": "PASS — created for post-warmup notification with symbol count and duration",
+          "formatting_helpers": "PASS — escape_markdown, format_price, format_pct all present"
+        }
+      }
+    },
+    "edge_cases": {
+      "score": 8,
+      "pass": true,
+      "issues": [
+        "SQLite path `/root/.../crypto-market-radar/data/radar.db` is hardcoded — directory `data/` does not exist. sqlite3.connect() will fail with FileNotFoundError. Caught by broad exception in cmd_alerts, but will be blocking in Phase 5 when alert logging is needed.",
+        "main.py does not check bot.send_message() return value. If startup notification fails (all retries exhausted), the bot starts silently without user noticing. Should at least log as ERROR or raise.",
+        "No check that `src/__init__.py` (which imports telegram package) is only run via `python -m src.main`, not via `python src/main.py`. The latter will fail with `ModuleNotFoundError` for `from src.telegram.bot import ...` because `sys.path[0]` becomes the `src/` directory, breaking the `src.` package prefix."
+      ],
+      "details": {
+        "covered": [
+          "Token file not found → FileNotFoundError",
+          "TG_CHAT_ID env not set → RuntimeError",
+          "TG push failure → retry (2 attempts, exponential backoff), returns False",
+          "SQLite query exception → caught, shows '暂无告警记录'",
+          "Empty config file (None) → returns empty dict with warning",
+          "Config file not found → FileNotFoundError",
+          "Env var missing → warning logged, empty string used"
+        ]
+      }
+    },
+    "scope_boundary": {
+      "score": 10,
+      "pass": true,
+      "issues": [],
+      "details": {
+        "phase1_only_modules": [
+          "src/main.py",
+          "src/telegram/bot.py",
+          "src/telegram/commands.py",
+          "src/telegram/formatter.py",
+          "src/telegram/__init__.py",
+          "src/config/loader.py",
+          "src/config/models.py",
+          "src/config/__init__.py",
+          "pyproject.toml"
+        ],
+        "correctly_deferred": [
+          "exchange/ — Phase 2 (not created)",
+          "cache/ — Phase 3 (not created)",
+          "indicators/ — Phase 3 (not created)",
+          "state/ — Phase 4 (not created)",
+          "alerts/ — Phase 5 (not created)",
+          "storage/ — Phase 5 (not created)",
+          "scheduler/ — Phase 6 (not created)",
+          "scripts/ — Phase 7 (not created)",
+          "systemd/ — Phase 7 (not created)",
+          "config/symbols.yaml — Phase 2 (not created)",
+          "config/alerts.yaml — Phase 5 (not created)"
+        ],
+        "existing_projects_touched": "NONE — bonereaper_rust and polymaker-spread-bot unchanged",
+        "redlines_respected": "All SPEC §2 '禁止做' redlines respected (no web, no trading, no multi-exchange, no AI)"
+      }
+    },
+    "code_quality": {
+      "score": 6,
+      "pass": false,
+      "issues": [
+        "parse_mode mismatch: commands.py _reply() uses parse_mode=\"Markdown\" but all escaping in the code follows MarkdownV2 rules. In classic Markdown, characters like `+`, `.` are not special, so `\\+` and `\\.` may render as literal `\\+` / `\\.` (backslash visible) instead of the intended `+` / `.`. This affects: /status version display (`1\\.0\\.0`), /watch market types (`现货\\+合约`), startup message dots (`告警监控\\.\\.\\.`). Fix: change parse_mode to \"MarkdownV2\" or remove V2-specific escapes.",
+        "Hardcoded absolute paths: (a) `TOKEN_PATH = Path(\"/root/.openclaw/workspace/data/tg_bot_token.txt\")` in bot.py — path is outside project directory, not configurable. (b) `/root/.openclaw/workspace/crypto-market-radar/data/radar.db` in commands.py — should use relative `data/radar.db` or a config-based path.",
+        "Missing directories: `data/`, `config/`, `logs/` from the SPEC §4.1 architecture diagram do not exist. The `data/` directory in particular is needed for SQLite operations. These should be created at startup (e.g., in main.py or a setup function).",
+        "Telegram package name conflict: `src/telegram/` shadows the `python-telegram-bot` package. Currently works when run as `python -m src.main` (because `telegram/` is under `src/`, not at project root), but is fragile — any change to sys.path (e.g., editable install with `pip install -e .`) will cause circular import between `src/telegram/__init__.py` and `bot.py`'s `from telegram import Bot`.",
+        "Fragile self-import in __init__.py: `src/telegram/__init__.py` does `from src.telegram.bot import RadarBot`, which re-imports the package being initialized. Works in practice (Python allows submodule imports during package init) but is an unusual pattern that could cause subtle issues with import ordering."
+      ],
+      "details": {
+        "function_lengths": "ALL < 60 lines (max: 27 lines for cmd_alerts) — PASS",
+        "file_lengths": "ALL < 200 lines (max: 183 for commands.py) — PASS",
+        "if_nesting": "MAX 2 levels — PASS",
+        "naming_convention": "Follows project convention (snake_case functions, CamelCase classes) — PASS",
+        "dead_code": "None detected — PASS",
+        "anti_patterns": "parse_mode mismatch (see above); hardcoded paths (see above)"
+      }
+    }
+  },
+  "must_fix": [
+    "Change parse_mode from \"Markdown\" to \"MarkdownV2\" in bot.py send_message() default and commands.py _reply() — current escaping follows V2 rules (escapes `+`, `.`, `[`, `]`) which are not correctly interpreted in classic Markdown mode.",
+    "Create `data/` directory at startup (in main.py before SQLite operations) or use os.makedirs(). Otherwise `cmd_alerts` and future alert logging will silently fail.",
+    "Replace hardcoded absolute paths with configurable values (relative paths or config.yaml entries). At minimum: `TOKEN_PATH` should be under the project directory or read from config."
+  ],
+  "suggestions": [
+    "Rename `src/telegram/` to `src/tg/` or `src/notifier/` to avoid package name shadowing with `python-telegram-bot`. This prevents the fragile import dependency and makes future `pip install -e .` work safely.",
+    "Add `__main__.py` in `src/` to support `python -m src` instead of `python -m src.main`.",
+    "Check `bot.send_message()` return value in main.py — log ERROR if startup notification delivery fails instead of silently continuing.",
+    "Use `pathlib.Path(__file__).parent.parent` for project-root-relative paths instead of hardcoding `/root/.openclaw/workspace/crypto-market-radar/`.",
+    "Consider using `python-telegram-bot`'s built-in `filters.COMMAND` and `escape_markdown` (from `telegram.constants`) instead of rolling custom regex-based escaping."
+  ],
+  "summary": "阶段一代码整体合格 (CONDITIONAL_PASS): 正确实现了 SPEC §9 的 TG 命令 (/status /help /summary /watch /reload /alerts) 和 §7 的推送模板 (启动通知/预热完成通知)，且严格未触碰 SPEC 红线的后续阶段模块。1 个必须修复的运行时 bug: parse_mode 使用 \"Markdown\" 但代码使用 MarkdownV2 转义规则，导致版本号、币种类型等字符串中的点号和加号在 Telegram 上渲染为带反斜杠的文字。2 个中等修复: data/ 目录缺失、硬编码绝对路径。包名 telegram 与 python-telegram-bot 的命名冲突是潜在隐患，建议后续阶段重命名。"
+}

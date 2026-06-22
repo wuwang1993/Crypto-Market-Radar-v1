@@ -1,0 +1,37 @@
+[Unit]
+Description=Crypto Market Radar Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cryptoradar
+Group=cryptoradar
+WorkingDirectory=/srv/crypto-market-radar
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TG_CHAT_ID=5915093313
+Environment=TG_BOT_TOKEN_FILE=/etc/crypto-market-radar/tg_bot_token.txt
+Environment=RADAR_DB_PATH=/var/lib/crypto-market-radar/radar.db
+ExecStart=/srv/crypto-market-radar/.venv/bin/python -m src.main
+Restart=always
+RestartSec=10
+
+# Resource limits
+CPUQuota=50%
+MemoryHigh=192M
+MemoryMax=256M
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/crypto-market-radar
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=crypto-radar
+
+[Install]
+WantedBy=multi-user.target
